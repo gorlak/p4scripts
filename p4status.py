@@ -1,5 +1,6 @@
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -32,15 +33,17 @@ try:
   if ( clientRoot[-1] != '\\' ) and ( clientRoot[-1] != '/' ):
     clientRoot += '/'
 
+  clientSlashesFixed = re.sub( r'\\', r'\\\\', clientRoot )
+
   def MakeLocalPath( f ):
-      f = clientMap.translate( f )
-      f = re.sub( '//' + re.escape( client[ 'Client' ] ) + '/(.*)', clientRoot + '\\1', f, 0, re.IGNORECASE )
-      f = re.sub( r'/', r'\\', f )
-      f = re.sub( r'%40', '@', f ) # special handling due to p4 character
-      f = re.sub( r'%23', '#', f ) # special handling due to p4 character
-      f = re.sub( r'%2A', '*', f ) # special handling due to p4 character
-      f = re.sub( r'%25', '%', f ) # special handling due to p4 character
-      return f
+    f = clientMap.translate( f )
+    f = re.sub( '//' + re.escape( client[ 'Client' ] ) + '/(.*)', clientSlashesFixed + '\\1', f, 0, re.IGNORECASE )
+    f = re.sub( r'/', r'\\', f )
+    f = re.sub( r'%40', '@', f ) # special handling due to p4 character
+    f = re.sub( r'%23', '#', f ) # special handling due to p4 character
+    f = re.sub( r'%2A', '*', f ) # special handling due to p4 character
+    f = re.sub( r'%25', '%', f ) # special handling due to p4 character
+    return f
 
   p4Opened = dict ()
   try:
@@ -65,8 +68,7 @@ try:
         continue
       f = result[ 'depotFile' ]
       f = MakeLocalPath( f )
-      f = f.replace( os.getcwd() + '\\', '' )
-      p4Files[ f.lower() ] = f
+      p4Files[ f.lower().replace( os.getcwd().lower() + '\\', '' ) ] = f
   except KeyboardInterrupt:
     exit(1)
 
@@ -78,8 +80,7 @@ try:
     for root, dirs, files in os.walk( os.getcwd() ):
       for name in files:
         f = os.path.join(root, name)
-        f = f.replace( os.getcwd() + '\\', '' )
-        fsFiles[ f.lower() ] = f
+        fsFiles[ f.lower().replace( os.getcwd().lower() + '\\', '' ) ] = f
   except KeyboardInterrupt:
     exit( 1 )
 
@@ -131,7 +132,7 @@ try:
 
     if len( local ):
       clean = False
-      print( "\nFiles on your disk not in any changelist:" )
+      print( "\nFiles on your disk not known to the server:" )
       for f in sorted( local ):
         print( f )
 
@@ -149,14 +150,14 @@ try:
     if options.added:
       print( "\nCleaning added files..." )
       for f in sorted( added ):
-        os.system( "attrib -r " + f )
+        os.chmod( f, stat.S_IWRITE )
         os.remove( os.path.join( os.getcwd(), f ) )
         p4.run_revert( f )
         print( f );
 
     print( "\nCleaning local-only files..." )
     for f in sorted( local ):
-      os.system( "attrib -r " + f )
+      os.chmod( f, stat.S_IWRITE )
       os.remove( os.path.join( os.getcwd(), f ) )
       print( f );
 

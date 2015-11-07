@@ -30,9 +30,11 @@ try:
   if ( clientRoot[-1] != '\\' ) and ( clientRoot[-1] != '/' ):
     clientRoot += '/'
 
+  clientSlashesFixed = re.sub( r'\\', r'\\\\', clientRoot )
+
   def MakeLocalPath( f ):
     f = clientMap.translate( f )
-    f = re.sub( '//' + client[ 'Client' ] + '/(.*)', clientRoot + '\\1', f )
+    f = re.sub( '//' + re.escape( client[ 'Client' ] ) + '/(.*)', clientSlashesFixed + '\\1', f, 0, re.IGNORECASE )
     f = re.sub( r'/', r'\\', f )
     f = re.sub( r'%40', '@', f ) # special handling due to p4 character
     f = re.sub( r'%23', '#', f ) # special handling due to p4 character
