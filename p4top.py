@@ -41,7 +41,8 @@ try:
 		#pp.pprint(results)
 
 		for result in results:
-			print( '{}/{:5}: {} - {:20} - {}'.format( result['status'], result['id'], result['time'], result['user'], result['command'] ) )
+			if result['command'] != 'IDLE':
+				print( '{}/{:5}: {} - {:20} - {}'.format( result['status'], result['id'], result['time'], result['user'], result['command'] ) )
 
 		try:
 			time.sleep( float( options.interval ) )

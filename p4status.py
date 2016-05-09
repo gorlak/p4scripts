@@ -7,9 +7,11 @@ import time
 
 import optparse
 parser = optparse.OptionParser()
-parser.add_option( "-c", "--clean", dest="clean", action="store_true", default=False, help="delete files that do not exist on the perforce server" )
-parser.add_option( "-a", "--added", dest="added", action="store_true", default=False, help="include files that are open for add in a changelist" )
-parser.add_option( "-e", "--edited", dest="edited", action="store_true", default=False, help="include files that are open for edit in a changelist" )
+parser.add_option( "-c", "--clean", dest="clean", action="store_true", default=False, help="clean local workspace to match the server workspace" )
+parser.add_option( "-a", "--clean_added", dest="clean_added", action="store_true", default=False, help="clean: delete and revert files that are opened for add" )
+parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
+parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=True, help="clean: restore files that are missing locally" )
+parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=True, help="clean: delete files that are unknown or deleted at #have" )
 ( options, args ) = parser.parse_args()
 
 import pprint
@@ -103,10 +105,10 @@ try:
     if not ( k in p4Files ) and ( k in p4Opened ):
       list.append( added, v )
 
-  local = []
+  extra = []
   for k, v in fsFiles.items():
     if not ( k in p4Files ) and not ( k in p4Opened ):
-      list.append( local, v )
+      list.append( extra, v )
 
   if report:
 
@@ -130,10 +132,10 @@ try:
       for f in sorted( added ):
         print( f )
 
-    if len( local ):
+    if len( extra ):
       clean = False
       print( "\nFiles on your disk not known to the server:" )
-      for f in sorted( local ):
+      for f in sorted( extra ):
         print( f )
 
     if clean:
@@ -141,13 +143,19 @@ try:
 
   elif options.clean:
 
-    if options.edited:
+    if options.clean_missing:
+      print( "\nSyncing missing files..." )
+      for f in sorted( missing ):
+        p4.run_sync( '-f', f )
+        print( f );
+
+    if options.clean_edited:
       print( "\nReverting edited files..." )
       for f in sorted( edited ):
         p4.run_revert( f )
         print( f );
 
-    if options.added:
+    if options.clean_added:
       print( "\nCleaning added files..." )
       for f in sorted( added ):
         os.chmod( f, stat.S_IWRITE )
@@ -155,11 +163,12 @@ try:
         p4.run_revert( f )
         print( f );
 
-    print( "\nCleaning local-only files..." )
-    for f in sorted( local ):
-      os.chmod( f, stat.S_IWRITE )
-      os.remove( os.path.join( os.getcwd(), f ) )
-      print( f );
+    if options.clean_extra:
+      print( "\nCleaning extra files..." )
+      for f in sorted( extra ):
+        os.chmod( f, stat.S_IWRITE )
+        os.remove( os.path.join( os.getcwd(), f ) )
+        print( f );
 
     print( "\nCleaning empty directories..." )
     for root, dirs, files in os.walk( os.getcwd(), topdown=False ):
