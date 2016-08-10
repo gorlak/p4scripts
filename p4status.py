@@ -32,6 +32,11 @@ try:
   clientMap = P4.Map( client[ 'View' ] )
   clientRoot = client[ 'Root' ]
 
+  # handle the p4config file special as its always hanging out, if it exists
+  p4configFile = p4.p4config_file
+  if p4configFile != None:
+    p4configFile = p4configFile.lower().replace( os.getcwd().lower() + '\\', '' )
+
   if ( clientRoot[-1] != '\\' ) and ( clientRoot[-1] != '/' ):
     clientRoot += '/'
 
@@ -107,6 +112,8 @@ try:
 
   extra = []
   for k, v in fsFiles.items():
+    if k == p4configFile:
+      continue
     if not ( k in p4Files ) and not ( k in p4Opened ):
       list.append( extra, v )
 
