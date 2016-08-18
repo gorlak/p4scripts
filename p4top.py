@@ -17,7 +17,7 @@ p4 = P4.P4()
 
 try:
 	p4.connect()
-  
+
 	while( 1 ):
 
 		os.system('cls')

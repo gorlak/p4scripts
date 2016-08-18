@@ -5,15 +5,9 @@ Reports how the local file system state differs in comparison to the repository 
 * Reports files that are missing from your computer
 * Reports files open for edit
 * Reports files open for add
-* Reports files loose files unknown to the server (at #have)
-* '--clean' utility deletes loose files from the file system
-* '--added' modifier to clean that also reverts and deletes files open for add
-* '--edited' modifier to clean that also reverts files open for edit
+* Reports files unknown to the server (extra files, and in consideration to #have...)
+* '--clean' utility to sync local state to match the server's state (add missing, revert edited/added, delete extra)
+* '--repair' utility will force sync corrupted file to #have (files open for edit shouldn't be lost, but YMMV!)
 
 p4top.py
 Much like unix/linux 'top': uses the monitor table to report server activity
-
-p4verify.py
-Verifies the contents of local files to ensure they contain the proper data (the contents the server expects)
-* Reports corrupted files
-* '--repair' utility will force sync corrupted file to #have (files open for edit shouldn't be lost, but YMMV!)

@@ -13,8 +13,21 @@ parser.add_option( "-a", "--clean_added", dest="clean_added", action="store_true
 parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
 parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=True, help="clean: restore files that are missing locally" )
 parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=True, help="clean: delete files that are unknown or deleted at #have" )
-parser.add_option( "-d", "--clean_dirs", dest="clean_dirs", action="store_true", default=True, help="clean: delete empty directories" )
+parser.add_option( "-d", "--clean_empty", dest="clean_empty", action="store_true", default=True, help="clean: delete empty directories" )
+parser.add_option( "-v", "--verify", dest="verify", action="store_true", default=False, help="verify integrity of existing files")
+parser.add_option( "-r", "--repair", dest="repair", action="store_true", default=False, help="repair files that fail verification")
+parser.add_option( "-R", "--reset", dest="reset", action="store_true", default=False, help="completely reset everything")
 ( options, args ) = parser.parse_args()
+
+if options.reset:
+    options.clean = True
+    options.clean_added = True
+    options.clean_edited = True
+    options.clean_missing = True
+    options.clean_extra = True
+    options.clean_empty = True
+    options.verify = True
+    options.repair = True
 
 import pprint
 pp = pprint.PrettyPrinter( indent=4 )
@@ -171,8 +184,9 @@ try:
     # handle non-unicode servers by marshalling raw bytes to local encoding
     if not p4.server_unicode:
         p4.encoding = 'raw'
+
     def p4MarshalString( data ):
-        if p4.server_unicode:
+        if isinstance( data, str ):
             return data
         else:
             return data.decode( locale.getpreferredencoding() )
@@ -180,7 +194,7 @@ try:
     # handle the p4config file special as its always hanging out, if it exists
     p4configFile = p4.p4config_file
     if p4configFile != None:
-        p4configFile = p4configFile.lower().replace( os.getcwd().lower() + '\\', '' )
+        p4configFile = p4configFile.lower()[ len( os.getcwd() ) + 1 :]
 
     # setup client
     client = p4.fetch_client()
@@ -212,8 +226,9 @@ try:
         results = p4.run_opened('-C', client[ 'Client' ], '...')
         for result in results:
             f = result[ 'depotFile' ]
+            f = p4MarshalString( f )
             f = p4MakeLocalPath( f )
-            f = f.replace( os.getcwd() + '\\', '' )
+            f = f[ len( os.getcwd() ) + 1 :]
             p4Opened[ f.lower() ] = f
     except KeyboardInterrupt:
         exit(1) 
@@ -227,9 +242,10 @@ try:
         for result in results:
             if p4MarshalString( result[ 'action' ] ).find( "delete" ) >= 0:
                 continue
-            f = p4MarshalString( result[ 'depotFile' ] )
+            f = result[ 'depotFile' ]
+            f = p4MarshalString( f )
             f = p4MakeLocalPath( f )
-            p4Files[ f.lower().replace( os.getcwd().lower() + '\\', '' ) ] = f
+            p4Files[ f.lower()[ len( os.getcwd() ) + 1 :] ] = f
     except KeyboardInterrupt:
         exit(1)
 
@@ -243,7 +259,7 @@ try:
         for root, dirs, files in os.walk( os.getcwd() ):
             for name in files:
                 f = os.path.join(root, name)
-                fsFiles[ f.lower().replace( os.getcwd().lower() + '\\', '' ) ] = f
+                fsFiles[ f.lower()[ len( os.getcwd() ) + 1 :] ] = f
             for name in dirs:
                 d = os.path.join(root, name)
                 link = None
@@ -255,11 +271,11 @@ try:
                     link = d
                     linkTarget = readjunction( d )
                 if link:
-                    fsLinks[ link.lower().replace( os.getcwd().lower() + '\\', '' ) ] = link
+                    fsLinks[ link.lower()[ len( os.getcwd() ) + 1 :] ] = link
                     if not os.path.isabs( linkTarget ):
                         linkTarget = os.path.abspath( os.path.join( os.path.dirname( linkTarget ), linkTarget ) )
                     if ( linkTarget.lower().startswith( os.getcwd().lower() ) ):
-                        fsLinkTargets[ linkTarget.lower().replace( os.getcwd().lower() + '\\', '' ) ] = linkTarget
+                        fsLinkTargets[ linkTarget.lower()[ len( os.getcwd() ) + 1 :] ] = linkTarget
     except KeyboardInterrupt:
         exit( 1 )
 
@@ -374,22 +390,50 @@ try:
                 os.remove( os.path.join( os.getcwd(), f ) )
                 print( f );
 
-        if options.clean_dirs:
+        if options.clean_empty:
             print( "\nCleaning empty directories..." )
             for root, dirs, files in os.walk( os.getcwd(), topdown=False ):
                 for name in dirs:
-                    d = os.path.join(root, name).lower().replace( os.getcwd().lower() + '\\', '' ) 
+                    d = os.path.join(root, name).lower()[ len( os.getcwd() ) + 1 :] 
                     if d in fsLinks.keys() or d in fsLinkTargets.keys():
                         continue
                     try:
                         os.rmdir( d ) # this will fail for nonempty dirs
-                        d = d.replace( os.getcwd() + '\\', '' )
+                        d = d[ len( os.getcwd() ) + 1 :]
                         print( d )
                     except WindowsError:
                         pass
 
-    else:
-        print( "Unknown operation!" )
+    if options.verify:
+
+        try:
+            print( "\nDiffing files..." )
+            results = p4.run_diff( '-se', '...' )
+        except KeyboardInterrupt:
+            exit( 1 )
+
+        corrupted = []
+        for result in results:
+            f = result[ 'depotFile' ]
+            f = p4MarshalString( f )
+            print( f )
+            f = p4MakeLocalPath( f )
+            print( f )
+            f = f[ len( os.getcwd() ) + 1 :]
+            print( f )
+            list.append( corrupted, f )
+
+        if len( corrupted ):
+            if options.repair:
+                print( "\nRepairing corrupted files:" )
+            else:
+                print( "\nCorrupted files:" )
+            for f in sorted( corrupted ):
+                print( f );
+            if options.repair:
+                p4.run_sync( '-f', f + "#have" )
+        else:
+            print( "\nWorking directory verified!" )
 
 except P4.P4Exception:
     for e in p4.errors:
