@@ -416,11 +416,8 @@ try:
         for result in results:
             f = result[ 'depotFile' ]
             f = p4MarshalString( f )
-            print( f )
             f = p4MakeLocalPath( f )
-            print( f )
             f = f[ len( os.getcwd() ) + 1 :]
-            print( f )
             list.append( corrupted, f )
 
         if len( corrupted ):
