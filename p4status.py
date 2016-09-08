@@ -201,22 +201,33 @@ try:
 
     # setup client
     client = p4.fetch_client()
-    clientMap = P4.Map( client[ 'View' ] )
     clientRoot = client[ 'Root' ]
-
     if ( clientRoot[-1] != '\\' ) and ( clientRoot[-1] != '/' ):
         clientRoot += '/'
 
+    clientMap = P4.Map( client[ 'View' ] )
     clientSlashesFixed = re.sub( r'\\', r'\\\\', clientRoot )
-
     def p4MakeLocalPath( f ):
         f = clientMap.translate( f )
-        f = re.sub( '//' + re.escape( client[ 'Client' ] ) + '/(.*)', clientSlashesFixed + '\\1', f, 0, re.IGNORECASE )
+        exp = '//' + re.escape( client[ 'Client' ] ) + '/(.*)'
+        f = re.sub( exp, clientSlashesFixed + '\\1', f, 0, re.IGNORECASE )
         f = re.sub( r'/', r'\\', f )
         f = re.sub( r'%40', '@', f ) # special handling due to p4 character
         f = re.sub( r'%23', '#', f ) # special handling due to p4 character
         f = re.sub( r'%2A', '*', f ) # special handling due to p4 character
         f = re.sub( r'%25', '%', f ) # special handling due to p4 character
+        return f
+
+    depotMap = clientMap.reverse()
+    def p4MakeDepotPath( f ):
+        exp = re.escape( clientRoot[:-1] ) + r'\\(.*)'
+        f = re.sub( exp, '//' + client[ 'Client' ] + '/\\1', f, 0, re.IGNORECASE )
+        f = re.sub( r'\\', '/', f )
+        f = re.sub( r'\%', '%25', f ) # special handling due to p4 character
+        f = re.sub( r'\*', '%2A', f ) # special handling due to p4 character
+        f = re.sub( r'\#', '%23', f ) # special handling due to p4 character
+        f = re.sub( r'\@', '%40', f ) # special handling due to p4 character
+        f = depotMap.translate( f )
         return f
 
     #
@@ -366,13 +377,13 @@ try:
     if options.clean_missing and len( missing ):
         print( "\nSyncing missing files..." )
         for f in sorted( missing ):
-            p4.run_sync( '-f', f )
+            p4.run_sync( '-f', p4MakeDepotPath( f ) )
             print( f );
 
     if options.clean_edited and len( edited ):
         print( "\nReverting edited files..." )
         for f in sorted( edited ):
-            p4.run_revert( f )
+            p4.run_revert( p4MakeDepotPath( f ) )
             print( f );
 
     if options.clean_added and len( added ):
@@ -380,7 +391,7 @@ try:
         for f in sorted( added ):
             os.chmod( f, stat.S_IWRITE )
             os.remove( os.path.join( os.getcwd(), f ) )
-            p4.run_revert( f )
+            p4.run_revert( p4MakeDepotPath( f ) )
             print( f );
 
     if options.clean_extra and len( extra ):
