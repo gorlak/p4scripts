@@ -8,26 +8,29 @@ import time
 
 import optparse
 parser = optparse.OptionParser()
-parser.add_option( "-c", "--clean", dest="clean", action="store_true", default=False, help="clean local workspace to match the server workspace" )
+parser.add_option( "-q", "--quiet", dest="quiet", action="store_true", default=False, help="dont display status report of files" )
+parser.add_option( "-c", "--clean_all", dest="clean_all", action="store_true", default=False, help="clean local workspace to match the server workspace" )
 parser.add_option( "-a", "--clean_added", dest="clean_added", action="store_true", default=False, help="clean: delete and revert files that are opened for add" )
 parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
-parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=True, help="clean: restore files that are missing locally" )
-parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=True, help="clean: delete files that are unknown or deleted at #have" )
-parser.add_option( "-d", "--clean_empty", dest="clean_empty", action="store_true", default=True, help="clean: delete empty directories" )
+parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=False, help="clean: restore files that are missing locally" )
+parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=False, help="clean: delete files that are unknown or deleted at #have" )
+parser.add_option( "-d", "--clean_empty", dest="clean_empty", action="store_true", default=False, help="clean: delete empty directories" )
 parser.add_option( "-v", "--verify", dest="verify", action="store_true", default=False, help="verify integrity of existing files")
 parser.add_option( "-r", "--repair", dest="repair", action="store_true", default=False, help="repair files that fail verification")
 parser.add_option( "-R", "--reset", dest="reset", action="store_true", default=False, help="completely reset everything")
 ( options, args ) = parser.parse_args()
 
 if options.reset:
-    options.clean = True
+    options.verify = True
+    options.repair = True
+    options.clean_all = True
+
+if options.clean_all:
     options.clean_added = True
     options.clean_edited = True
     options.clean_missing = True
     options.clean_extra = True
     options.clean_empty = True
-    options.verify = True
-    options.repair = True
 
 import pprint
 pp = pprint.PrettyPrinter( indent=4 )
@@ -330,8 +333,7 @@ try:
     # do what we came here to do
     #
 
-    report = (not options.clean)
-    if report:
+    if not options.quiet:
         clean = True
 
         if len( missing ):
@@ -361,48 +363,46 @@ try:
         if clean:
             print( "\nWorking directory clean!" )
 
-    elif options.clean:
+    if options.clean_missing and len( missing ):
+        print( "\nSyncing missing files..." )
+        for f in sorted( missing ):
+            p4.run_sync( '-f', f )
+            print( f );
 
-        if options.clean_missing:
-            print( "\nSyncing missing files..." )
-            for f in sorted( missing ):
-                p4.run_sync( '-f', f )
-                print( f );
+    if options.clean_edited and len( edited ):
+        print( "\nReverting edited files..." )
+        for f in sorted( edited ):
+            p4.run_revert( f )
+            print( f );
 
-        if options.clean_edited:
-            print( "\nReverting edited files..." )
-            for f in sorted( edited ):
-                p4.run_revert( f )
-                print( f );
+    if options.clean_added and len( added ):
+        print( "\nCleaning added files..." )
+        for f in sorted( added ):
+            os.chmod( f, stat.S_IWRITE )
+            os.remove( os.path.join( os.getcwd(), f ) )
+            p4.run_revert( f )
+            print( f );
 
-        if options.clean_added:
-            print( "\nCleaning added files..." )
-            for f in sorted( added ):
-                os.chmod( f, stat.S_IWRITE )
-                os.remove( os.path.join( os.getcwd(), f ) )
-                p4.run_revert( f )
-                print( f );
+    if options.clean_extra and len( extra ):
+        print( "\nCleaning extra files..." )
+        for f in sorted( extra ):
+            os.chmod( f, stat.S_IWRITE )
+            os.remove( os.path.join( os.getcwd(), f ) )
+            print( f );
 
-        if options.clean_extra:
-            print( "\nCleaning extra files..." )
-            for f in sorted( extra ):
-                os.chmod( f, stat.S_IWRITE )
-                os.remove( os.path.join( os.getcwd(), f ) )
-                print( f );
-
-        if options.clean_empty:
-            print( "\nCleaning empty directories..." )
-            for root, dirs, files in os.walk( os.getcwd(), topdown=False ):
-                for name in dirs:
-                    d = os.path.join(root, name).lower()[ len( os.getcwd() ) + 1 :] 
-                    if d in fsLinks.keys() or d in fsLinkTargets.keys():
-                        continue
-                    try:
-                        os.rmdir( d ) # this will fail for nonempty dirs
-                        d = d[ len( os.getcwd() ) + 1 :]
-                        print( d )
-                    except WindowsError:
-                        pass
+    if options.clean_empty:
+        print( "\nCleaning empty directories..." )
+        for root, dirs, files in os.walk( os.getcwd(), topdown=False ):
+            for name in dirs:
+                d = os.path.join(root, name).lower()[ len( os.getcwd() ) + 1 :] 
+                if d in fsLinks.keys() or d in fsLinkTargets.keys():
+                    continue
+                try:
+                    os.rmdir( d ) # this will fail for nonempty dirs
+                    d = d[ len( os.getcwd() ) + 1 :]
+                    print( d )
+                except WindowsError:
+                    pass
 
     if options.verify:
 
