@@ -438,8 +438,8 @@ try:
                 print( "\nCorrupted files:" )
             for f in sorted( corrupted ):
                 print( f );
-            if options.repair:
-                p4.run_sync( '-f', f + "#have" )
+                if options.repair:
+                    p4.run_sync( '-f', f + "#have" )
         else:
             print( "\nWorking directory verified!" )
 
