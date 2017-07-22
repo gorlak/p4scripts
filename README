@@ -1,14 +1,15 @@
 Perforce scripts
 
-p4status.py
-Reports how the local file system state differs in comparison to the repository state
+p4top.py
+Much like unix/linux 'top': uses the monitor table to report server activity
+
+p4type.py
+Dumps audits of the file type that various files are stored as and can migrate those files to a differen type (preserving attributes)
+
+p4workspace.py
+Reports how the local file system state differs in comparison to the repository state on the server-side
 * Reports files that are missing from your computer
 * Reports files open for edit
 * Reports files open for add
 * Reports files unknown to the server (extra files, and in consideration to #have...)
-* '--clean' utility to sync local state to match the server's state (add missing, revert edited/added, delete extra)
-* '--repair' utility will force sync corrupted file to #have (files open for edit shouldn't be lost, but YMMV!)
-* '--reset' to completely wipe the workspace clean
-
-p4top.py
-Much like unix/linux 'top': uses the monitor table to report server activity
+* Has routines to clean up the state of local the workspace
