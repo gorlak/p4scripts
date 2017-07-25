@@ -65,7 +65,11 @@ try:
 	for result in results:
 		f = result[ 'depotFile' ]
 		f = p4MarshalString( f )
-		t = result[ 'headType' ]
+		t = None
+		if 'type' in result:
+			t = result[ 'type' ]
+		elif 'headType' in result:
+			t = result[ 'headType' ]
 		t = p4MarshalString( t )
 		if not t in p4Types:
 			p4Types[ t ] = list ()
@@ -100,6 +104,7 @@ try:
 		print( "Setting type to " + options.set_exact + "...")
 
 		for f in sorted( files ):
+			print( f[0] )
 			p4.run_edit('-t', options.set_exact, f[0])
 
 	elif options.set_base:
@@ -126,7 +131,12 @@ try:
 			# transplant flags onto the new base filetype
 			newBase = f[1].replace( base, options.set_base )
 
-			p4.run_edit( '-t', newBase, f[0] )
+			print( f[0] )
+			opened = p4.run_opened( f[0] )
+			if len( opened ) and 'change' in opened[0]:
+				p4.run_reopen( '-t', newBase, f[0] )
+			else:
+				p4.run_edit( '-t', newBase, f[0] )
 
 	else:
 		print( "Total Type breakdown:" )
