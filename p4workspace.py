@@ -375,16 +375,32 @@ try:
 
 	if options.verify:
 
-		print( "\nDiffing files..." )
-		results = p4.run_diff( '-se', '...' )
-
 		corrupted = []
-		for result in results:
-			f = result[ 'depotFile' ]
-			f = p4MarshalString( f )
-			f = p4MakeLocalPath( f )
-			f = f[ len( os.getcwd() ) + 1 :]
-			list.append( corrupted, f )
+
+		class DiffOutputHandler(P4.OutputHandler):
+			def __init__(self):
+				P4.OutputHandler.__init__(self)
+				self.increment = 1000
+				self.notify = self.increment
+				self.count = 0
+
+			def outputStat(self, stat):
+				self.count = self.count + 1
+				if self.count == self.notify:
+					print( str( self.count ) + '/' + str( len( p4Files ) ) )
+					self.notify = self.notify + self.increment
+
+				if p4MarshalString( stat[ 'status' ] ) == 'diff':
+					f = stat[ 'depotFile' ]
+					f = p4MarshalString( f )
+					f = p4MakeLocalPath( f )
+					f = f[ len( os.getcwd() ) + 1 :]
+					list.append( corrupted, f )
+
+				return P4.OutputHandler.HANDLED
+
+		print( "\nDiffing files..." )
+		p4.run_diff( '-sl', '...', handler = DiffOutputHandler() )
 
 		if len( corrupted ):
 			if options.repair:
