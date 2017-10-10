@@ -24,6 +24,7 @@ import P4
 
 parser = optparse.OptionParser()
 parser.add_option( "-q", "--quiet", dest="quiet", action="store_true", default=False, help="dont display status report of files" )
+parser.add_option( "-p", "--progress", dest="progress", action="store_true", default=False, help="display progress for large operations" )
 parser.add_option( "-c", "--clean_all", dest="clean_all", action="store_true", default=False, help="clean local workspace to match the server workspace" )
 parser.add_option( "-a", "--clean_added", dest="clean_added", action="store_true", default=False, help="clean: delete and revert files that are opened for add" )
 parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
@@ -34,6 +35,9 @@ parser.add_option( "-v", "--verify", dest="verify", action="store_true", default
 parser.add_option( "-r", "--repair", dest="repair", action="store_true", default=False, help="repair files that fail verification")
 parser.add_option( "-R", "--reset", dest="reset", action="store_true", default=False, help="completely reset everything")
 ( options, args ) = parser.parse_args()
+
+if options.repair:
+	options.verify = True
 
 if options.reset:
 	options.verify = True
@@ -216,24 +220,40 @@ try:
 	print( " got " + str( len( p4Opened ) ) + " opened files from the server" )
 
 	p4Files = dict ()
+	p4Increment = 100000
+	p4Notify = p4Increment
+	p4Count = 0
 	print( "Fetching depot files from p4..." )
 	results = p4.run_files('-e', '...#have')
 	for result in results:
 		f = result[ 'depotFile' ]
 		f = p4MarshalString( f )
 		f = p4MakeLocalPath( f )
-		p4Files[ f.lower()[ len( os.getcwd() ) + 1 :] ] = f
+		key = f.lower()[ len( os.getcwd() ) + 1 :]
+		p4Files[ key ] = f
+		p4Count = p4Count + 1
+		if options.progress and p4Count == p4Notify:
+			print( str( p4Count ) + ' files so far...' )
+			p4Notify = p4Notify + p4Increment
 
 	print( " got " + str( len( p4Files ) ) + " non-opened files from the server" )
 
 	fsFiles = dict()
 	fsLinks = dict()
 	fsLinkTargets = dict()
+	fsIncrement = 100000
+	fsNotify = fsIncrement
+	fsCount = 0
 	print( "Fetching files from fs..." )
 	for root, dirs, files in os.walk( os.getcwd() ):
 		for name in files:
 			f = os.path.join(root, name)
-			fsFiles[ f.lower()[ len( os.getcwd() ) + 1 :] ] = f
+			key = f.lower()[ len( os.getcwd() ) + 1 :]
+			fsFiles[ key ] = f
+			fsCount = fsCount + 1
+			if options.progress and fsCount == fsNotify:
+				print( str( fsCount ) + ' files so far...' )
+				fsNotify = fsNotify + fsIncrement
 		for name in dirs:
 			d = os.path.join(root, name)
 			link = None
@@ -383,11 +403,21 @@ try:
 				self.increment = 1000
 				self.notify = self.increment
 				self.count = 0
+				self.start = time.time()
 
 			def outputStat(self, stat):
 				self.count = self.count + 1
-				if self.count == self.notify:
-					print( str( self.count ) + '/' + str( len( p4Files ) ) )
+				if options.progress and self.count == self.notify:
+					velocity = float( self.count ) / float( time.time() - self.start )
+					remaining = ( float( len( p4Files ) ) - float( self.count ) ) / velocity
+					eta = ''
+					if remaining > 3600.0:
+						eta = str( int( remaining / 3600.0 ) ) + 'h'
+					elif remaining > 60.0:
+						eta = str( int( remaining / 60.0 ) ) + 'm'
+					else:
+						eta = str( int( remaining ) ) + 's' 
+					print( str( self.count ) + '/' + str( len( p4Files ) ) + ' ETA: ' + eta + ' @ %.2f files/s' % ( velocity ) )
 					self.notify = self.notify + self.increment
 
 				if p4MarshalString( stat[ 'status' ] ) == 'diff':
