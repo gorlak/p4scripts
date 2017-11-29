@@ -6,6 +6,7 @@
 #
 
 # core python
+import codecs
 import locale
 import optparse
 import os
@@ -14,6 +15,17 @@ import re
 # p4api
 import P4
 
+# bom helper
+def get_bom(path):
+    with open(path, 'rb') as f:
+        raw = f.read(4) # will read less if the file is smaller
+    for enc,boms in \
+            ('utf8',(codecs.BOM_UTF8,)),\
+            ('utf16',(codecs.BOM_UTF16_LE,codecs.BOM_UTF16_BE)),\
+            ('utf32',(codecs.BOM_UTF32_LE,codecs.BOM_UTF32_BE)):
+        if any(raw.startswith(bom) for bom in boms): return enc
+    return None
+
 #
 # setup argument parsing
 #
@@ -21,9 +33,16 @@ import P4
 parser = optparse.OptionParser()
 parser.add_option( "-e", "--exact", dest="select_exact", action="store", default=None, help="list the depot path of the files that match the specified fully-qualified type (including attributes and storage)" )
 parser.add_option( "-b", "--base", dest="select_base", action="store", default=None, help="list the depot path of the files whose base type match the specified base type (not including attributes and storage)" )
+parser.add_option( "-8", "--utf8", dest="select_utf8", action="store_true", default=None, help="only include files that have utf8 byte order marks" )
+parser.add_option( "-6", "--utf16", dest="select_utf16", action="store_true", default=None, help="only include files that have utf16 byte order marks" )
+parser.add_option( "-3", "--utf32", dest="select_utf32", action="store_true", default=None, help="only include files that have utf32 byte order marks" )
 parser.add_option( "-E", "--set-exact", dest="set_exact", action="store", default=None, help="set the new file type" )
 parser.add_option( "-B", "--set-base", dest="set_base", action="store", default=None, help="change the base file type, but preserve attributes and storage" )
 ( options, args ) = parser.parse_args()
+
+extension = str ()
+if len( args ):
+	extension = '.' + args[0]
 
 import pprint
 pp = pprint.PrettyPrinter( indent=4 )
@@ -55,13 +74,32 @@ try:
 		else:
 			return data.decode( locale.getpreferredencoding() )
 
+	# setup client
+	client = p4.fetch_client()
+	clientRoot = client[ 'Root' ]
+	if ( clientRoot[-1] != '\\' ) and ( clientRoot[-1] != '/' ):
+		clientRoot += '/'
+
+	clientMap = P4.Map( client[ 'View' ] )
+	clientSlashesFixed = re.sub( r'\\', r'\\\\', clientRoot )
+	def p4MakeLocalPath( f ):
+		f = clientMap.translate( f )
+		exp = '//' + re.escape( client[ 'Client' ] ) + '/(.*)'
+		f = re.sub( exp, clientSlashesFixed + '\\1', f, 0, re.IGNORECASE )
+		f = re.sub( r'/', r'\\', f )
+		f = re.sub( r'%40', '@', f ) # special handling due to p4 character
+		f = re.sub( r'%23', '#', f ) # special handling due to p4 character
+		f = re.sub( r'%2A', '*', f ) # special handling due to p4 character
+		f = re.sub( r'%25', '%', f ) # special handling due to p4 character
+		return f
+
 	#
 	# query lots of info
 	#
 
 	p4Types = dict ()
 	print( "Fetching file information..." )
-	results = p4.run_fstat('-Os', '-F', '^headAction=delete & ^headAction=move/delete', '...')
+	results = p4.run_fstat('-Os', '-F', '^action=delete & ^headAction=delete & ^headAction=move/delete', '...' + extension)
 	for result in results:
 		f = result[ 'depotFile' ]
 		f = p4MarshalString( f )
@@ -81,16 +119,30 @@ try:
 
 	files = list ()
 
+	def shouldSkipBecauseBom( f ):
+		if options.select_utf8:
+			if "utf8" != get_bom( p4MakeLocalPath( f ) ):
+				return True
+		elif options.select_utf16:
+			if "utf16" != get_bom( p4MakeLocalPath( f ) ):
+				return True
+		elif options.select_utf32:
+			if "utf32" != get_bom( p4MakeLocalPath( f ) ):
+				return True
+		return False
+
 	if options.select_exact:
 		if options.select_exact in p4Types:
 			for f in sorted( p4Types[ options.select_exact ] ):
-				files.append( ( f, options.select_exact ) )
+				if not shouldSkipBecauseBom( f ):
+					files.append( ( f, options.select_exact ) )
 
 	if options.select_base:
 		for k, v in p4Types.items():
 			if k.startswith( options.select_base ):
 				for f in v:
-					files.append( ( f, k ) )
+					if not shouldSkipBecauseBom( f ):
+						files.append( ( f, k ) )
 
 	#
 	# make changes, if desired. list selection otherwise
