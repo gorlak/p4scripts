@@ -164,8 +164,11 @@ try:
 	def p4MarshalString( data ):
 		if isinstance( data, str ):
 			return data
-		else:
+		elif isinstance( data, bytes ):
 			return data.decode( locale.getpreferredencoding() )
+		else:
+			print( 'Unexpected type: ' + data )
+			os.exit( 1 )
 
 	# handle the p4config file special as its always hanging out, if it exists
 	p4configFile = p4.p4config_file
