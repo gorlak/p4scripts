@@ -31,6 +31,7 @@ parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_tr
 parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=False, help="clean: restore files that are missing locally" )
 parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=False, help="clean: delete files that are unknown or deleted at #have" )
 parser.add_option( "-d", "--clean_empty", dest="clean_empty", action="store_true", default=False, help="clean: delete empty directories" )
+parser.add_option( "-f", "--clean_attrs", dest="clean_attrs", action="store_true", default=False, help="clean: repair any incorrect file attributes" )
 parser.add_option( "-v", "--verify", dest="verify", action="store_true", default=False, help="verify integrity of existing files")
 parser.add_option( "-r", "--repair", dest="repair", action="store_true", default=False, help="repair files that fail verification")
 parser.add_option( "-R", "--reset", dest="reset", action="store_true", default=False, help="completely reset everything")
@@ -50,6 +51,7 @@ if options.clean_all:
 	options.clean_missing = True
 	options.clean_extra = True
 	options.clean_empty = True
+	options.clean_attrs = True
 
 import pprint
 pp = pprint.PrettyPrinter( indent=4 )
@@ -70,6 +72,7 @@ kernel32 = WinDLL('kernel32')
 LPDWORD = POINTER(DWORD)
 UCHAR = c_ubyte
 INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
+FILE_ATTRIBUTE_READONLY = 0x00001
 FILE_ATTRIBUTE_REPARSE_POINT = 0x00400
 INVALID_HANDLE_VALUE = HANDLE(-1).value
 OPEN_EXISTING = 3
@@ -223,6 +226,8 @@ try:
 	print( " got " + str( len( p4Opened ) ) + " opened files from the server" )
 
 	p4Files = dict ()
+	p4ReadOnly = dict()
+	p4Writable = dict()
 	p4Increment = 100000
 	p4Notify = p4Increment
 	p4Count = 0
@@ -234,6 +239,21 @@ try:
 		f = p4MakeLocalPath( f )
 		key = f.lower()[ len( os.getcwd() ) + 1 :]
 		p4Files[ key ] = f
+
+		t = None
+		if 'type' in result:
+			t = result[ 'type' ]
+		elif 'headType' in result:
+			t = result[ 'headType' ]
+		t = p4MarshalString( t )
+		typeComponents = t.split('+')
+		if len( typeComponents ) > 1 and 'w' in typeComponents[1]:
+			p4Writable[ key ] = f
+			#print(f + " is +w")
+		else:
+			p4ReadOnly[ key ] = f
+			#print(f + " is +r")
+
 		p4Count = p4Count + 1
 		if options.progress and p4Count == p4Notify:
 			print( str( p4Count ) + ' files so far...' )
@@ -242,6 +262,8 @@ try:
 	print( " got " + str( len( p4Files ) ) + " non-opened files from the server" )
 
 	fsFiles = dict()
+	fsReadOnly = dict()
+	fsWritable = dict()
 	fsLinks = dict()
 	fsLinkTargets = dict()
 	fsIncrement = 100000
@@ -253,6 +275,13 @@ try:
 			f = os.path.join(root, name)
 			key = f.lower()[ len( os.getcwd() ) + 1 :]
 			fsFiles[ key ] = f
+			result = GetFileAttributesW(f)
+			if result & FILE_ATTRIBUTE_READONLY:
+				fsReadOnly[ key ] = f
+				#print(f + " is RO")
+			else:
+				fsWritable[ key ] = f
+				#print(f + " is RW")
 			fsCount = fsCount + 1
 			if options.progress and fsCount == fsNotify:
 				print( str( fsCount ) + ' files so far...' )
@@ -321,6 +350,17 @@ try:
 
 			list.append( extra, v )
 
+	shouldBeWritable = []
+	for k, v in fsReadOnly.items():
+		if ( k in p4Writable ):
+			list.append( shouldBeWritable, v )
+
+	shouldBeReadOnly = []
+	for k, v in fsWritable.items():
+		if ( k in p4ReadOnly ) and not ( k in p4Opened ):
+			list.append( shouldBeReadOnly, v )
+
+
 	#
 	# do what we came here to do
 	#
@@ -352,6 +392,18 @@ try:
 			for f in sorted( extra ):
 				print( f )
 
+		if len( shouldBeWritable ):
+			clean = False
+			print( "\nFiles on your disk that should be writable, and are read-only:" )
+			for f in sorted( shouldBeWritable ):
+				print( f )
+
+		if len( shouldBeReadOnly ):
+			clean = False
+			print( "\nFiles on your disk that should be read-only, but are writable:" )
+			for f in sorted( shouldBeReadOnly ):
+				print( f )
+
 		if clean:
 			print( "\nWorking directory clean!" )
 
@@ -380,6 +432,18 @@ try:
 		for f in sorted( extra ):
 			os.chmod( f, stat.S_IWRITE )
 			os.remove( os.path.join( os.getcwd(), f ) )
+			print( f )
+
+	if options.clean_attrs and len( shouldBeWritable ):
+		print( "\nChanging read-only files to writable..." )
+		for f in sorted( shouldBeWritable ):
+			os.chmod( f, stat.S_IWRITE )
+			print( f )
+
+	if options.clean_attrs and len( shouldBeReadOnly ):
+		print( "\nChanging writable files to read-only..." )
+		for f in sorted( shouldBeReadOnly ):
+			os.chmod( f, stat.S_IREAD )
 			print( f )
 
 	if options.clean_empty:
