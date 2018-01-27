@@ -365,6 +365,12 @@ try:
 	# do what we came here to do
 	#
 
+	def safePrint( s ):
+		try:
+		  print( s )
+		except UnicodeEncodeError:
+		  print( s.encode(encoding=locale.getpreferredencoding(), errors='replace').decode( locale.getpreferredencoding() ) )
+
 	if not options.quiet:
 		clean = True
 
@@ -372,37 +378,37 @@ try:
 			clean = False
 			print( "\nFiles missing from your disk:" )
 			for f in sorted( missing ):
-				print( f )
+				safePrint( f )
 
 		if len( edited ):
 			clean = False
 			print( "\nFiles on your disk open for edit in a changelist:" )
 			for f in sorted( edited ):
-				print( f )
+				safePrint( f )
 
 		if len( added ):
 			clean = False
 			print( "\nFiles on your disk open for add in a changelist:" )
 			for f in sorted( added ):
-				print( f )
+				safePrint( f )
 
 		if len( extra ):
 			clean = False
 			print( "\nFiles on your disk not known to the server:" )
 			for f in sorted( extra ):
-				print( f )
+				safePrint( f )
 
 		if len( shouldBeWritable ):
 			clean = False
 			print( "\nFiles on your disk that should be writable, and are read-only:" )
 			for f in sorted( shouldBeWritable ):
-				print( f )
+				safePrint( f )
 
 		if len( shouldBeReadOnly ):
 			clean = False
 			print( "\nFiles on your disk that should be read-only, but are writable:" )
 			for f in sorted( shouldBeReadOnly ):
-				print( f )
+				safePrint( f )
 
 		if clean:
 			print( "\nWorking directory clean!" )
@@ -411,13 +417,13 @@ try:
 		print( "\nSyncing missing files..." )
 		for f in sorted( missing ):
 			p4.run_sync( '-f', p4MakeDepotPath( f ) )
-			print( f )
+			safePrint( f )
 
 	if options.clean_edited and len( edited ):
 		print( "\nReverting edited files..." )
 		for f in sorted( edited ):
 			p4.run_revert( p4MakeDepotPath( f ) )
-			print( f )
+			safePrint( f )
 
 	if options.clean_added and len( added ):
 		print( "\nCleaning added files..." )
@@ -425,26 +431,26 @@ try:
 			os.chmod( f, stat.S_IWRITE )
 			os.remove( os.path.join( os.getcwd(), f ) )
 			p4.run_revert( p4MakeDepotPath( f ) )
-			print( f )
+			safePrint( f )
 
 	if options.clean_extra and len( extra ):
 		print( "\nCleaning extra files..." )
 		for f in sorted( extra ):
 			os.chmod( f, stat.S_IWRITE )
 			os.remove( os.path.join( os.getcwd(), f ) )
-			print( f )
+			safePrint( f )
 
 	if options.clean_attrs and len( shouldBeWritable ):
 		print( "\nChanging read-only files to writable..." )
 		for f in sorted( shouldBeWritable ):
 			os.chmod( f, stat.S_IWRITE )
-			print( f )
+			safePrint( f )
 
 	if options.clean_attrs and len( shouldBeReadOnly ):
 		print( "\nChanging writable files to read-only..." )
 		for f in sorted( shouldBeReadOnly ):
 			os.chmod( f, stat.S_IREAD )
-			print( f )
+			safePrint( f )
 
 	if options.clean_empty:
 		print( "\nCleaning empty directories..." )
@@ -456,7 +462,7 @@ try:
 				try:
 					os.rmdir( d ) # this will fail for nonempty dirs
 					d = d[ len( os.getcwd() ) + 1 :]
-					print( d )
+					safePrint( d )
 				except WindowsError:
 					pass
 
@@ -505,7 +511,7 @@ try:
 			else:
 				print( "\nCorrupted files:" )
 			for f in sorted( corrupted ):
-				print( f )
+				safePrint( f )
 				if options.repair:
 					p4.run_sync( '-f', f + "#have" )
 		else:
