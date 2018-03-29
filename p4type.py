@@ -61,8 +61,12 @@ try:
 	# connect and setup p4
 	#
 
+	# perl sets this differently from os.getcwd() (%CD% on windows), and p4api reads it
+	os.putenv( 'PWD', os.getcwd() )
+
 	p4 = P4.P4()
 	p4.connect()
+	info = p4.run_info()
 
 	# handle non-unicode servers by marshalling raw bytes to local encoding
 	if not p4.server_unicode:
@@ -210,8 +214,12 @@ try:
 	p4.disconnect()
 
 except P4.P4Exception:
-	for e in p4.errors:
-		print( e )
+	print( traceback.format_exc() )
+	print( "\nP4 'info':" )
+	pp.pprint( info )
+	print( "\nEnvironment:" )
+	pp.pprint( dict(os.environ) )
+	exit( 1 )
 
 except KeyboardInterrupt:
 	exit( 1 )
