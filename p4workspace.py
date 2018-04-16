@@ -166,7 +166,7 @@ try:
 	info = p4.run_info()
 
 	# handle non-unicode servers by marshalling raw bytes to local encoding
-	if not p4.server_unicode:
+	if not p4.server_unicode and hasattr(p4, 'encoding'):
 		p4.encoding = 'raw'
 
 	def p4MarshalString( data ):
