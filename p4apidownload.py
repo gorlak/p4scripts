@@ -46,6 +46,6 @@ for p in permutations:
 
 	# move all the things out of an inconvenient directory name
 	print( ' Publishing...' )
-	distutils.dir_util.copy_tree( 'download/' + version, 'download/p4api' )
-	shutil.rmtree( 'download/' + version )
+	distutils.dir_util.copy_tree( 'download/' + version, version_folder )
+	shutil.rmtree( 'download' )
 

@@ -115,6 +115,9 @@ try:
 			t = result[ 'type' ]
 		elif 'headType' in result:
 			t = result[ 'headType' ]
+		else:
+			print( 'Couldn\'t find type for ' + f + ', got ' + str( result ) )
+			continue
 		t = p4MarshalString( t )
 		if not t in p4Types:
 			p4Types[ t ] = list ()
