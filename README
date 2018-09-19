@@ -1,5 +1,8 @@
 Perforce scripts
 
+p4stream.py
+Dump stream utilization (and optionally dump client population per stream)
+
 p4top.py
 Much like unix/linux 'top': uses the monitor table to report server activity
 
