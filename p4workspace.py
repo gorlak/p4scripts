@@ -421,7 +421,7 @@ try:
 	if options.clean_missing and len( missing ):
 		print( "\nSyncing missing files..." )
 		for f in sorted( missing ):
-			p4.run_sync( '-f', p4MakeDepotPath( f ) )
+			p4.run_sync( '-f', p4MakeDepotPath( f ) + "#have" )
 			safePrint( f )
 
 	if options.clean_edited and len( edited ):
