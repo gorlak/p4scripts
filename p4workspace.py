@@ -518,7 +518,7 @@ try:
 			for f in sorted( corrupted ):
 				safePrint( f )
 				if options.repair:
-					p4.run_sync( '-f', f + "#have" )
+					p4.run_sync( '-f', p4MakeDepotPath( f ) + "#have" )
 		else:
 			print( "\nWorking directory verified!" )
 
