@@ -152,6 +152,10 @@ def readjunction(path):
 # main
 #
 
+def dbg(str):
+	#print(str)
+	pass
+
 try:
 
 	#
@@ -236,13 +240,21 @@ try:
 	p4Increment = 100000
 	p4Notify = p4Increment
 	p4Count = 0
-	print( "Fetching depot files from p4..." )
-	results = p4.run_files('-e', '...#have')
+	print( "Fetching non-opened files from p4..." )
+
+	try:
+		results = p4.run_files('-e', '...#have')
+	except P4.P4Exception as e:
+		s = p4MarshalString( e.value )
+		if "file(s) not on client" not in s:
+			raise
+
 	for result in results:
 		f = result[ 'depotFile' ]
 		f = p4MarshalString( f )
 		f = p4MakeLocalPath( f )
-		key = f.lower()[ len( os.getcwd() ) + 1 :]
+		f = f[ len( os.getcwd() ) + 1 :]
+		key = f.lower()
 		p4Files[ key ] = f
 
 		t = None
@@ -254,10 +266,10 @@ try:
 		typeComponents = t.split('+')
 		if len( typeComponents ) > 1 and 'w' in typeComponents[1]:
 			p4Writable[ key ] = f
-			#print(f + " is +w")
+			dbg(f + " is +w")
 		else:
 			p4ReadOnly[ key ] = f
-			#print(f + " is +r")
+			dbg(f + " is +r")
 
 		p4Count = p4Count + 1
 		if options.progress and p4Count == p4Notify:
@@ -278,37 +290,47 @@ try:
 	for root, dirs, files in os.walk( os.getcwd() ):
 		for name in files:
 			f = os.path.join(root, name)
-			key = f.lower()[ len( os.getcwd() ) + 1 :]
+			f = f[ len( os.getcwd() ) + 1 :]
+			key = f.lower()
 			fsFiles[ key ] = f
 			result = GetFileAttributesW(f)
 			if result & FILE_ATTRIBUTE_READONLY:
 				fsReadOnly[ key ] = f
-				#print(f + " is RO")
+				dbg(f + " is RO")
 			else:
 				fsWritable[ key ] = f
-				#print(f + " is RW")
+				dbg(f + " is RW")
 			fsCount = fsCount + 1
 			if options.progress and fsCount == fsNotify:
 				print( str( fsCount ) + ' files so far...' )
 				fsNotify = fsNotify + fsIncrement
 		for name in dirs:
 			d = os.path.join(root, name)
+			d = d[ len( os.getcwd() ) + 1 :]
 			link = None
 			linkTarget = None
 			if os.path.islink( d ):
 				link = d
 				linkTarget = os.readlink( d )
+				dbg( "symlink: " + link + " target: " + linkTarget )
 			elif isjunction( d ):
 				link = d
 				linkTarget = readjunction( d )
+				dbg( "junction: " + link + " target: " + linkTarget )
 			if link:
-				fsLinks[ link.lower()[ len( os.getcwd() ) + 1 :] ] = link
+				linkKey = link.lower()
+				fsLinks[ linkKey ] = link
 				if not os.path.isabs( linkTarget ):
-					linkTarget = os.path.abspath( os.path.join( os.path.dirname( linkTarget ), linkTarget ) )
+					linkTarget = os.path.abspath( os.path.join( os.path.dirname( link ), linkTarget ) ) # relpath from link
+				dbg( "raw link: " + link + " raw target: " + linkTarget )
 				if ( linkTarget.lower().startswith( os.getcwd().lower() ) ):
-					fsLinkTargets[ linkTarget.lower()[ len( os.getcwd() ) + 1 :] ] = linkTarget
+					linkTarget = linkTarget[ len( os.getcwd() ) + 1 :]
+					linkTargetKey = linkTarget.lower()
+					fsLinkTargets[ linkTargetKey ] = linkTarget
+					dbg( "sani link: " + link + " sani target: " + linkTarget )
 
 	print( " got " + str( len( fsFiles ) ) + " files from the file system" )
+	print( " got " + str( len( fsLinks ) ) + " links from the file system" )
 
 	if len( fsLinks ):
 		print( "  will skip files below " + str( len( fsLinks ) ) + " links:" )
@@ -421,28 +443,28 @@ try:
 	if options.clean_missing and len( missing ):
 		print( "\nSyncing missing files..." )
 		for f in sorted( missing ):
-			p4.run_sync( '-f', p4MakeDepotPath( f ) + "#have" )
+			p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
 			safePrint( f )
 
 	if options.clean_edited and len( edited ):
 		print( "\nReverting edited files..." )
 		for f in sorted( edited ):
-			p4.run_revert( p4MakeDepotPath( f ) )
+			p4.run_revert( p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) )
 			safePrint( f )
 
 	if options.clean_added and len( added ):
 		print( "\nCleaning added files..." )
 		for f in sorted( added ):
 			os.chmod( f, stat.S_IWRITE )
-			os.remove( os.path.join( os.getcwd(), f ) )
-			p4.run_revert( p4MakeDepotPath( f ) )
+			os.remove( f )
+			p4.run_revert( p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) )
 			safePrint( f )
 
 	if options.clean_extra and len( extra ):
 		print( "\nCleaning extra files..." )
 		for f in sorted( extra ):
 			os.chmod( f, stat.S_IWRITE )
-			os.remove( os.path.join( os.getcwd(), f ) )
+			os.remove( f )
 			safePrint( f )
 
 	if options.clean_attrs and len( shouldBeWritable ):
@@ -518,7 +540,7 @@ try:
 			for f in sorted( corrupted ):
 				safePrint( f )
 				if options.repair:
-					p4.run_sync( '-f', p4MakeDepotPath( f ) + "#have" )
+					p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
 		else:
 			print( "\nWorking directory verified!" )
 
