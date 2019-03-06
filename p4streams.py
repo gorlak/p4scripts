@@ -22,6 +22,7 @@ import P4
 parser = optparse.OptionParser()
 parser.add_option( "-d", "--depot", dest="depot", action="store", default=None, help="filter streams to the specified depot" )
 parser.add_option( "-l", "--list", dest="list", action="store_true", default=None, help="list client names for each stream" )
+parser.add_option( "-f", "--full", dest="full", action="store_true", default=None, help="list full streams only (no virtual)" )
 ( options, args ) = parser.parse_args()
 
 stream = str ()
@@ -50,6 +51,7 @@ try:
 
 	p4 = P4.P4()
 	p4.connect()
+	p4.exception_level = 1 # omit warnings
 	info = p4.run_info()
 
 	# handle non-unicode servers by marshalling raw bytes to local encoding
@@ -75,6 +77,8 @@ try:
 	for result in results:
 		stream = p4MarshalString( result['Stream'] )
 		if not stream.startswith( options.depot if options.depot else "" ):
+			continue
+		if options.full and "virtual" == p4MarshalString( result['Type'] ):
 			continue
 		p4Streams[ stream ] = result
 
