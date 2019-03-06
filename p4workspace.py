@@ -166,6 +166,7 @@ try:
 	os.putenv( 'PWD', os.getcwd() )
 
 	p4 = P4.P4()
+	p4.exception_level = 1 # omit warnings
 	p4.connect()
 	info = p4.run_info()
 
@@ -525,7 +526,8 @@ try:
 					f = p4MarshalString( f )
 					f = p4MakeLocalPath( f )
 					f = f[ len( os.getcwd() ) + 1 :]
-					list.append( corrupted, f )
+					if not ( f in p4Opened ):
+						list.append( corrupted, f )
 
 				return P4.OutputHandler.HANDLED
 
