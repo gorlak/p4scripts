@@ -28,6 +28,7 @@ try:
 
 	p4 = P4.P4()
 	p4.connect()
+	p4.exception_level = 1 # omit warnings
 	info = p4.run_info()
 
 	while( 1 ):
