@@ -220,8 +220,10 @@ try:
 		return f
 
 	#
-	# query lots of info
+	# query lots of p4 server info
 	#
+
+	p4Start = time.time()
 
 	p4Opened = dict ()
 	print( "Fetching opened files from p4..." )
@@ -278,6 +280,14 @@ try:
 			p4Notify = p4Notify + p4Increment
 
 	print( " got " + str( len( p4Files ) ) + " non-opened files from the server" )
+
+	print( "\nFetched server state in %.2fs\n" % float(time.time() - p4Start) )
+
+	#
+	# query lots of file system info
+	#
+
+	fsStart = time.time()
 
 	fsFiles = dict()
 	fsReadOnly = dict()
@@ -343,9 +353,13 @@ try:
 			for k, v in fsLinkTargets.items():
 				print( "   " + k )
 
+	print( "\nFetched file system state in %.2fs\n" % float(time.time() - fsStart) )
+
 	#
 	# fill out lists of relevant data
 	#
+
+	listStart = time.time()
 
 	missing = []
 	for k, v in p4Files.items():
@@ -388,9 +402,10 @@ try:
 		if ( k in p4ReadOnly ) and not ( k in p4Opened ):
 			list.append( shouldBeReadOnly, v )
 
+	print( "Processed lists in %.2fs\n" % float(time.time() - listStart) )
 
 	#
-	# do what we came here to do
+	# issue reports on the lists
 	#
 
 	def safePrint( s ):
@@ -400,6 +415,7 @@ try:
 		  print( s.encode(encoding=locale.getpreferredencoding(), errors='replace').decode( locale.getpreferredencoding() ) )
 
 	if not options.quiet:
+		reportStart = time.time()
 		clean = True
 
 		if len( missing ):
@@ -441,17 +457,28 @@ try:
 		if clean:
 			print( "\nWorking directory clean!" )
 
+		print( "\nReported state in %.2fs\n" % float(time.time() - reportStart) )
+
+	#
+	# mutate workspace state
+	#
+
+	mutateStart = time.time()
+	mutated = False
+
 	if options.clean_missing and len( missing ):
 		print( "\nSyncing missing files..." )
 		for f in sorted( missing ):
 			p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_edited and len( edited ):
 		print( "\nReverting edited files..." )
 		for f in sorted( edited ):
 			p4.run_revert( p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_added and len( added ):
 		print( "\nCleaning added files..." )
@@ -460,6 +487,7 @@ try:
 			os.remove( f )
 			p4.run_revert( p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_extra and len( extra ):
 		print( "\nCleaning extra files..." )
@@ -467,18 +495,21 @@ try:
 			os.chmod( f, stat.S_IWRITE )
 			os.remove( f )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_attrs and len( shouldBeWritable ):
 		print( "\nChanging read-only files to writable..." )
 		for f in sorted( shouldBeWritable ):
 			os.chmod( f, stat.S_IWRITE )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_attrs and len( shouldBeReadOnly ):
 		print( "\nChanging writable files to read-only..." )
 		for f in sorted( shouldBeReadOnly ):
 			os.chmod( f, stat.S_IREAD )
 			safePrint( f )
+			mutated = True
 
 	if options.clean_empty:
 		print( "\nCleaning empty directories..." )
@@ -491,6 +522,7 @@ try:
 					os.rmdir( d ) # this will fail for nonempty dirs
 					d = d[ len( os.getcwd() ) + 1 :]
 					safePrint( d )
+					mutated = True
 				except WindowsError:
 					pass
 
@@ -541,10 +573,14 @@ try:
 				print( "\nCorrupted files:" )
 			for f in sorted( corrupted ):
 				safePrint( f )
+				mutated = True
 				if options.repair:
 					p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
 		else:
 			print( "\nWorking directory verified!" )
+
+	if mutated:
+		print( "\nMutated state in %.2fs\n" % float(time.time() - mutateStart) )
 
 	#
 	# disconnect
