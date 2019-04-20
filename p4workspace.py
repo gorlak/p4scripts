@@ -24,15 +24,22 @@ import P4
 #
 
 parser = optparse.OptionParser()
+parser.add_option( "-x", "--exit", dest="exit", action="store_true", default=False, help="set exit code for clean/dirty status of shown info" )
 parser.add_option( "-q", "--quiet", dest="quiet", action="store_true", default=False, help="dont display status report of files" )
 parser.add_option( "-p", "--progress", dest="progress", action="store_true", default=False, help="display progress for large operations" )
+parser.add_option( "-s", "--show_all", dest="show_all", action="store_true", default=False, help="show differences between the local workspace and the server workspace" )
+parser.add_option( "--sa", "--show_added", dest="show_added", action="store_true", default=False, help="show: files that are opened for add" )
+parser.add_option( "--se", "--show_edited", dest="show_edited", action="store_true", default=False, help="show: files that are opened for edit" )
+parser.add_option( "--sm", "--show_missing", dest="show_missing", action="store_true", default=False, help="show: files that are missing locally" )
+parser.add_option( "--sx", "--show_extra", dest="show_extra", action="store_true", default=False, help="show: files that are unknown or deleted at #have" )
+parser.add_option( "--sf", "--show_attrs", dest="show_attrs", action="store_true", default=False, help="show: files with incorrect attributes" )
 parser.add_option( "-c", "--clean_all", dest="clean_all", action="store_true", default=False, help="clean local workspace to match the server workspace" )
-parser.add_option( "-a", "--clean_added", dest="clean_added", action="store_true", default=False, help="clean: delete and revert files that are opened for add" )
-parser.add_option( "-e", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
-parser.add_option( "-m", "--clean_missing", dest="clean_missing", action="store_true", default=False, help="clean: restore files that are missing locally" )
-parser.add_option( "-x", "--clean_extra", dest="clean_extra", action="store_true", default=False, help="clean: delete files that are unknown or deleted at #have" )
-parser.add_option( "-d", "--clean_empty", dest="clean_empty", action="store_true", default=False, help="clean: delete empty directories" )
-parser.add_option( "-f", "--clean_attrs", dest="clean_attrs", action="store_true", default=False, help="clean: repair any incorrect file attributes" )
+parser.add_option( "--ca", "--clean_added", dest="clean_added", action="store_true", default=False, help="clean: delete and revert files that are opened for add" )
+parser.add_option( "--ce", "--clean_edited", dest="clean_edited", action="store_true", default=False, help="clean: revert files that are opened for edit" )
+parser.add_option( "--cm", "--clean_missing", dest="clean_missing", action="store_true", default=False, help="clean: restore files that are missing locally" )
+parser.add_option( "--cx", "--clean_extra", dest="clean_extra", action="store_true", default=False, help="clean: delete files that are unknown or deleted at #have" )
+parser.add_option( "--cd", "--clean_empty", dest="clean_empty", action="store_true", default=False, help="clean: delete empty directories" )
+parser.add_option( "--cf", "--clean_attrs", dest="clean_attrs", action="store_true", default=False, help="clean: repair any incorrect file attributes" )
 parser.add_option( "-v", "--verify", dest="verify", action="store_true", default=False, help="verify integrity of existing files")
 parser.add_option( "-r", "--repair", dest="repair", action="store_true", default=False, help="repair files that fail verification")
 parser.add_option( "-R", "--reset", dest="reset", action="store_true", default=False, help="completely reset everything")
@@ -45,6 +52,13 @@ if options.reset:
 	options.verify = True
 	options.repair = True
 	options.clean_all = True
+
+if options.show_all:
+	options.show_added = True
+	options.show_edited = True
+	options.show_missing = True
+	options.show_extra = True
+	options.show_attrs = True
 
 if options.clean_all:
 	options.clean_added = True
@@ -408,6 +422,8 @@ try:
 	# issue reports on the lists
 	#
 
+	exitCode = 0
+
 	def safePrint( s ):
 		try:
 		  print( s )
@@ -420,42 +436,69 @@ try:
 
 		if len( missing ):
 			clean = False
-			print( "\nFiles missing from your disk:" )
-			for f in sorted( missing ):
-				safePrint( f )
+			if options.show_missing:
+				exitCode = 1
+				print( "\nFiles missing from your disk:" )
+				for f in sorted( missing ):
+					safePrint( f )
+			else:
+				print( "%d files missing from your disk" % len( missing ) )
+
 
 		if len( edited ):
 			clean = False
-			print( "\nFiles on your disk open for edit in a changelist:" )
-			for f in sorted( edited ):
-				safePrint( f )
+			if options.show_edited:
+				exitCode = 1
+				print( "\nFiles on your disk open for edit in a changelist:" )
+				for f in sorted( edited ):
+					safePrint( f )
+			else:
+				print( "%d files on your disk open for edit in a changelist" % len( edited ) )
 
 		if len( added ):
 			clean = False
-			print( "\nFiles on your disk open for add in a changelist:" )
-			for f in sorted( added ):
-				safePrint( f )
+			if options.show_added:
+				exitCode = 1
+				print( "\nFiles on your disk open for add in a changelist:" )
+				for f in sorted( added ):
+					safePrint( f )
+			else:
+				print( "%d files on your disk open for add in a changelist" % len( added ) )
 
 		if len( extra ):
 			clean = False
-			print( "\nFiles on your disk not known to the server:" )
-			for f in sorted( extra ):
-				safePrint( f )
+			if options.show_extra:
+				exitCode = 1
+				print( "\nFiles on your disk not known to the server:" )
+				for f in sorted( extra ):
+					safePrint( f )
+			else:
+				print( "%d files on your disk not known to the server" % len( extra ) )
 
 		if len( shouldBeWritable ):
 			clean = False
-			print( "\nFiles on your disk that should be writable, and are read-only:" )
-			for f in sorted( shouldBeWritable ):
-				safePrint( f )
+			if options.show_attrs:
+				exitCode = 1
+				print( "\nFiles on your disk that should be writable, and are read-only:" )
+				for f in sorted( shouldBeWritable ):
+					safePrint( f )
+			else:
+				print( "%d files on your disk that should be writable, and are read-only" % len( shouldBeWritable ) )
 
 		if len( shouldBeReadOnly ):
 			clean = False
-			print( "\nFiles on your disk that should be read-only, but are writable:" )
-			for f in sorted( shouldBeReadOnly ):
-				safePrint( f )
+			if options.show_attrs:
+				exitCode = 1
+				print( "\nFiles on your disk that should be read-only, but are writable:" )
+				for f in sorted( shouldBeReadOnly ):
+					safePrint( f )
+			else:
+				print( "%d files on your disk that should be read-only, but are writable" % len( shouldBeReadOnly ) )
 
 		if clean:
 			print( "\nWorking directory clean!" )
+		else:
+			print( "\nWorking directory dirty!" )
 
 		print( "\nReported state in %.2fs\n" % float(time.time() - reportStart) )
 
@@ -587,6 +630,9 @@ try:
 	#
 
 	p4.disconnect()
+
+	if options.exit:
+		exit( exitCode )
 
 except P4.P4Exception:
 	print( traceback.format_exc() )
