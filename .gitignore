@@ -1,3 +1,5 @@
 download/
 .vscode
 .sublime-workspace
+publish.bat
+publish.sh
