@@ -70,17 +70,20 @@ try:
 	info = p4.run_info()
 
 	# handle non-unicode servers by marshalling raw bytes to local encoding
+	encoding = 'UTF-8'
 	if not p4.server_unicode:
-		p4.encoding = 'raw'
+		encoding = locale.getpreferredencoding()
+		if hasattr(p4, 'encoding'):
+			p4.encoding = 'raw'
 
 	def p4MarshalString( data ):
 		if isinstance( data, str ):
 			return data
 		elif isinstance( data, bytes ):
-			return data.decode( locale.getpreferredencoding() )
+			return data.decode( encoding )
 		else:
 			print( 'Unexpected type: ' + data )
-			os.exit( 1 )
+			exit( 1 )
 
 	# setup client
 	client = p4.fetch_client()
@@ -174,7 +177,7 @@ try:
 		
 		if options.set_base not in validBaseTypes:
 			print( "Desired base type " + options.set_base + " is not a recognized base type")
-			os.exit( 1 )
+			exit( 1 )
 		
 		print( "Changing base type to " + options.set_base + "...")
 
@@ -189,7 +192,7 @@ try:
 
 			if not base:
 				print( "Existing type " + f[1] + " has unrecognized base type" )
-				os.exit( 1 )
+				exit( 1 )
 
 			# transplant flags onto the new base filetype
 			newBase = f[1].replace( base, options.set_base )

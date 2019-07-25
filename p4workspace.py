@@ -185,17 +185,20 @@ try:
 	info = p4.run_info()
 
 	# handle non-unicode servers by marshalling raw bytes to local encoding
-	if not p4.server_unicode and hasattr(p4, 'encoding'):
-		p4.encoding = 'raw'
+	encoding = 'UTF-8'
+	if not p4.server_unicode:
+		encoding = locale.getpreferredencoding()
+		if hasattr(p4, 'encoding'):
+			p4.encoding = 'raw'
 
 	def p4MarshalString( data ):
 		if isinstance( data, str ):
 			return data
 		elif isinstance( data, bytes ):
-			return data.decode( locale.getpreferredencoding() )
+			return data.decode( encoding )
 		else:
 			print( 'Unexpected type: ' + data )
-			os.exit( 1 )
+			exit( 1 )
 
 	# handle the p4config file special as its always hanging out, if it exists
 	p4configFile = p4.p4config_file
@@ -222,7 +225,7 @@ try:
 		return f
 
 	depotMap = clientMap.reverse()
-	def p4MakeDepotPath( f ):
+	def p4MakeDepotPath( f, revRange = "" ):
 		exp = re.escape( clientRoot[:-1] ) + r'\\(.*)'
 		f = re.sub( exp, '//' + client[ 'Client' ] + '/\\1', f, 0, re.IGNORECASE )
 		f = re.sub( r'\\', '/', f )
@@ -231,7 +234,8 @@ try:
 		f = re.sub( r'\#', '%23', f ) # special handling due to p4 character
 		f = re.sub( r'\@', '%40', f ) # special handling due to p4 character
 		f = depotMap.translate( f )
-		return f
+		f = f + revRange
+		return f.encode( encoding )
 
 	#
 	# query lots of p4 server info
@@ -426,9 +430,9 @@ try:
 
 	def safePrint( s ):
 		try:
-		  print( s )
+			print( s )
 		except UnicodeEncodeError:
-		  print( s.encode(encoding=locale.getpreferredencoding(), errors='replace').decode( locale.getpreferredencoding() ) )
+			print( s.encode(encoding=encoding, errors='replace').decode( encoding ) + ' (reencoded)' )
 
 	if not options.quiet:
 		reportStart = time.time()
@@ -512,7 +516,7 @@ try:
 	if options.clean_missing and len( missing ):
 		print( "\nSyncing missing files..." )
 		for f in sorted( missing ):
-			p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
+			p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ), "#have" ) )
 			safePrint( f )
 			mutated = True
 
@@ -618,7 +622,7 @@ try:
 				safePrint( f )
 				mutated = True
 				if options.repair:
-					p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ) ) + "#have" )
+					p4.run_sync( '-f', p4MakeDepotPath( os.path.join( os.getcwd(), f ), "#have" ) )
 		else:
 			print( "\nWorking directory verified!" )
 
