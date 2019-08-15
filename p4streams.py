@@ -21,7 +21,7 @@ import P4
 
 parser = optparse.OptionParser()
 parser.add_option( "-d", "--depot",  dest="depot",  action="store",      default=None, help="filter streams to the specified depot" )
-parser.add_option( "-s", "--stream", dest="stream", action="store",      default=None, help="filter streams to the specified depot" )
+parser.add_option( "-s", "--stream", dest="stream", action="store",      default=None, help="filter to the specified stream" )
 parser.add_option( "-l", "--list",   dest="list",   action="store_true", default=None, help="list client names for each stream" )
 parser.add_option( "-f", "--full",   dest="full",   action="store_true", default=None, help="list full streams only (no virtual)" )
 ( options, args ) = parser.parse_args()
