@@ -567,7 +567,6 @@ try:
 					continue
 				try:
 					os.rmdir( d ) # this will fail for nonempty dirs
-					d = d[ len( os.getcwd() ) + 1 :]
 					safePrint( d )
 					mutated = True
 				except WindowsError:
